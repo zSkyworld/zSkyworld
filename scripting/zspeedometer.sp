@@ -122,7 +122,7 @@ public MenuAreaHandler(Handle menu, MenuAction action, param1, param2){
 		else {
 			DisplayMenu(menu, param1, MENU_TIME_FOREVER);
 		}
-    }
+	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
 		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
 	}
@@ -151,7 +151,7 @@ public MenuTypeHandler(Handle menu, MenuAction action, param1, param2){
 		g_ClientOnOff[param1] = true;
 		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
 		PrintToChat(param1, "\x04[Speedometer]:\x01 Type set to %s", sMenuitem);
-    }
+	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
 		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
 	}

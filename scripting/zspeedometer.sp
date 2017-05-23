@@ -65,9 +65,6 @@ public OnPluginStart(){
 	CreateTimer(0.1, OnTimer, _, TIMER_REPEAT);
 }
 
-public OnPluginEnd(){
-}
-
 public OnClientPutInServer(client){
 	g_ClientOnOff[client] = false;
 	g_ClientDisplayArea[client] = DisplayAreaCenter;
@@ -160,7 +157,7 @@ public MenuTypeHandler(Handle menu, MenuAction action, param1, param2){
 public Action OnTimer(Handle timer){
 	float fVel[3];
 	char sOutput[64];
-	for (int client=1; client<MaxClients; client++){
+	for (int client=1; client<=MaxClients; client++){
 		if (IsClientInGame(client) && g_ClientOnOff[client]){
 			GetEntPropVector(client, Prop_Data, "m_vecVelocity", fVel);
 			if (g_ClientDisplayType[client] == DisplayTypeVelocityXY){

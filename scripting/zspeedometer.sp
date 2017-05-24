@@ -57,10 +57,10 @@ public OnPluginStart(){
 	SetMenuTitle(g_MenuArea, "\x04[Speedometer]:\x01 Area");
 	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "DisplayAreaCenter");
 	AddMenuItem(g_MenuArea, "DisplayAreaHint", "DisplayAreaHint");
-	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
-	AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
-	AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
-	AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
+	// AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
+	// AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
+	// AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
+	// AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
 	SetMenuExitBackButton(g_MenuArea, true);
 
 	g_MenuType = CreateMenu(MenuTypeHandler);
@@ -222,19 +222,21 @@ public Action OnTimer(Handle timer){
 
 public PrintToGameText(int client, char[] msg, char[] sx, char[] sy){
 	int ent = CreateEntityByName("game_text");
-	DispatchKeyValue(ent, "channel", "1");
-	DispatchKeyValue(ent, "color", "255 255 255");
-	DispatchKeyValue(ent, "color2", "0 0 0");
-	DispatchKeyValue(ent, "effect", "0");
-	DispatchKeyValue(ent, "fadein", "1.5");
-	DispatchKeyValue(ent, "fadeout", "0.5");
-	DispatchKeyValue(ent, "fxtime", "0.25");
-	DispatchKeyValue(ent, "holdtime", "5.0");
-	DispatchKeyValue(ent, "message", msg);
-	DispatchKeyValue(ent, "spawnflags", "0");
-	DispatchKeyValue(ent, "x", sx);
-	DispatchKeyValue(ent, "y", sy);
-	DispatchSpawn(ent);
-	SetVariantString("!activator");
-	AcceptEntityInput(ent,"display", client);
+	if (ent > 0){
+		DispatchKeyValue(ent, "channel", "1");
+		DispatchKeyValue(ent, "color", "255 255 255");
+		DispatchKeyValue(ent, "color2", "0 0 0");
+		DispatchKeyValue(ent, "effect", "0");
+		DispatchKeyValue(ent, "fadein", "1.5");
+		DispatchKeyValue(ent, "fadeout", "0.5");
+		DispatchKeyValue(ent, "fxtime", "0.25");
+		DispatchKeyValue(ent, "holdtime", "5.0");
+		DispatchKeyValue(ent, "message", msg);
+		DispatchKeyValue(ent, "spawnflags", "0");
+		DispatchKeyValue(ent, "x", sx);
+		DispatchKeyValue(ent, "y", sy);
+		DispatchSpawn(ent);
+		SetVariantString("!activator");
+		AcceptEntityInput(ent, "display", client);
+	}
 }

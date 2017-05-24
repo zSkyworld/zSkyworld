@@ -12,6 +12,12 @@
 	2017.05.24	added PrintToGameText
 */
 
+#define MENU_DISPLAY_SECONDS 30
+// #define MENU_DISPLAY_SECONDS MENU_TIME_FOREVER
+
+#define HUD_UPDATE_RATE 0.2
+// #define HUD_UPDATE_RATE 0.1
+
 public Plugin myinfo = {
 	name = "Speedometer",
 	author = "z.",
@@ -57,10 +63,10 @@ public OnPluginStart(){
 	SetMenuTitle(g_MenuArea, "\x04[Speedometer]:\x01 Area");
 	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "DisplayAreaCenter");
 	AddMenuItem(g_MenuArea, "DisplayAreaHint", "DisplayAreaHint");
-	// AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
-	// AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
-	// AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
-	// AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
+	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
+	AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
+	AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
+	AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
 	SetMenuExitBackButton(g_MenuArea, true);
 
 	g_MenuType = CreateMenu(MenuTypeHandler);
@@ -71,7 +77,7 @@ public OnPluginStart(){
 	AddMenuItem(g_MenuType, "DisplayTypeKPH", "DisplayTypeKPH");
 	SetMenuExitBackButton(g_MenuType, true);
 
-	CreateTimer(0.1, OnTimer, _, TIMER_REPEAT);
+	CreateTimer(HUD_UPDATE_RATE, OnTimer, _, TIMER_REPEAT);
 }
 
 public OnClientPutInServer(client){
@@ -82,7 +88,7 @@ public OnClientPutInServer(client){
 
 public Action OnClientSayCommand(client, const char[] cmd, const char[] args){
 	if (client > 0 && MatchRegex(g_Regex, args) > 0){
-		DisplayMenu(g_MenuMain, client, MENU_TIME_FOREVER);
+		DisplayMenu(g_MenuMain, client, MENU_DISPLAY_SECONDS);
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
@@ -98,13 +104,13 @@ public MenuMainHandler(Handle menu, MenuAction action, param1, param2){
 				g_ClientOnOff[param1]?"On":"Off");
 		}
 		else if (0 == strcmp(sMenuitem, "area")){
-			DisplayMenu(g_MenuArea, param1, MENU_TIME_FOREVER);
+			DisplayMenu(g_MenuArea, param1, MENU_DISPLAY_SECONDS);
 		}
 		else if (0 == strcmp(sMenuitem, "type")){
-			DisplayMenu(g_MenuType, param1, MENU_TIME_FOREVER);
+			DisplayMenu(g_MenuType, param1, MENU_DISPLAY_SECONDS);
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
 		}
 	}
 }
@@ -132,15 +138,15 @@ public MenuAreaHandler(Handle menu, MenuAction action, param1, param2){
 			g_ClientDisplayArea[param1] = DisplayAreaBottomRight;
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
 			return;
 		}
 		g_ClientOnOff[param1] = true;
 		PrintToChat(param1, "\x04[Speedometer]:\x01 Area set to %s", sMenuitem);
-		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
+		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
 	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
-		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
+		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
 	}
 }
 
@@ -161,15 +167,15 @@ public MenuTypeHandler(Handle menu, MenuAction action, param1, param2){
 			g_ClientDisplayType[param1] = DisplayTypeKPH;
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
 			return;
 		}
 		g_ClientOnOff[param1] = true;
-		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
+		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
 		PrintToChat(param1, "\x04[Speedometer]:\x01 Type set to %s", sMenuitem);
 	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
-		DisplayMenu(g_MenuMain, param1, MENU_TIME_FOREVER);
+		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
 	}
 }
 
@@ -205,38 +211,28 @@ public Action OnTimer(Handle timer){
 				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaTopLeft){
-				PrintToGameText(client, sOutput, "0", "0");
+				PrintToGameText(client, sOutput, 0.0, 0.0);
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaTopRight){
-				PrintToGameText(client, sOutput, "1", "0");
+				PrintToGameText(client, sOutput, 1.0, 0.0);
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaBottomLeft){
-				PrintToGameText(client, sOutput, "0", "1");
+				PrintToGameText(client, sOutput, 0.0, 1.0);
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaBottomRight){
-				PrintToGameText(client, sOutput, "1", "1");
+				PrintToGameText(client, sOutput, 1.0, 1.0);
 			}
 		}
 	}
 }
 
-public PrintToGameText(int client, char[] msg, char[] sx, char[] sy){
-	int ent = CreateEntityByName("game_text");
-	if (ent > 0){
-		DispatchKeyValue(ent, "channel", "1");
-		DispatchKeyValue(ent, "color", "255 255 255");
-		DispatchKeyValue(ent, "color2", "0 0 0");
-		DispatchKeyValue(ent, "effect", "0");
-		DispatchKeyValue(ent, "fadein", "1.5");
-		DispatchKeyValue(ent, "fadeout", "0.5");
-		DispatchKeyValue(ent, "fxtime", "0.25");
-		DispatchKeyValue(ent, "holdtime", "5.0");
-		DispatchKeyValue(ent, "message", msg);
-		DispatchKeyValue(ent, "spawnflags", "0");
-		DispatchKeyValue(ent, "x", sx);
-		DispatchKeyValue(ent, "y", sy);
-		DispatchSpawn(ent);
-		SetVariantString("!activator");
-		AcceptEntityInput(ent, "display", client);
-	}
+public PrintToGameText(int client, char[] msg, float sx, float sy){
+	SetHudTextParams(
+		sx, sy, HUD_UPDATE_RATE,
+		255, // r
+		255, // g
+		255, // b
+		255, // a
+		0, 0.0, 0.0, 0.0);
+	ShowHudText(client, -1, msg);
 }

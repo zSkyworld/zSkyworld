@@ -60,7 +60,7 @@ public OnPluginStart(){
 	AddMenuItem(g_MenuMain, "type", "Select Type");
 
 	g_MenuArea = CreateMenu(MenuAreaHandler);
-	SetMenuTitle(g_MenuArea, "\x04[Speedometer]:\x01 Area");
+	SetMenuTitle(g_MenuArea, "Speedometer: Area");
 	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "DisplayAreaCenter");
 	AddMenuItem(g_MenuArea, "DisplayAreaHint", "DisplayAreaHint");
 	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
@@ -70,7 +70,7 @@ public OnPluginStart(){
 	SetMenuExitBackButton(g_MenuArea, true);
 
 	g_MenuType = CreateMenu(MenuTypeHandler);
-	SetMenuTitle(g_MenuType, "\x04[Speedometer]:\x01 Type");
+	SetMenuTitle(g_MenuType, "Speedometer: Type");
 	AddMenuItem(g_MenuType, "DisplayTypeVelocityXY", "DisplayTypeVelocityXY");
 	AddMenuItem(g_MenuType, "DisplayTypeVelocityXYZ", "DisplayTypeVelocityXYZ");
 	AddMenuItem(g_MenuType, "DisplayTypeMPH", "DisplayTypeMPH");

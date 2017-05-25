@@ -10,13 +10,8 @@
 	zskyworld.com
 	2017.05.23	initial
 	2017.05.24	added PrintToGameText
+	2017.05.25	added cvar, areas, csgo
 */
-
-#define MENU_DISPLAY_SECONDS 30
-// #define MENU_DISPLAY_SECONDS MENU_TIME_FOREVER
-
-#define HUD_UPDATE_RATE 0.2
-// #define HUD_UPDATE_RATE 0.1
 
 public Plugin myinfo = {
 	name = "Speedometer",
@@ -25,33 +20,40 @@ public Plugin myinfo = {
 };
 
 enum DisplayArea {
-	DisplayAreaCenter       = 0,
-	DisplayAreaHint         = 1,
-	DisplayAreaTopLeft      = 2,
-	DisplayAreaTopRight     = 3,
-	DisplayAreaBottomLeft   = 4,
-	DisplayAreaBottomRight  = 5,
+	DisplayAreaCenter,
+	DisplayAreaHint,
+	DisplayAreaTopLeft,
+	DisplayAreaTopCenter,
+	DisplayAreaTopRight,
+	DisplayAreaCenterCenter,
+	DisplayAreaBottomLeft,
+	DisplayAreaBottomRight
 };
 
 enum DisplayType {
-	DisplayTypeVelocityXY   = 0,
-	DisplayTypeVelocityXYZ  = 1,
-	DisplayTypeMPH          = 2,
-	DisplayTypeKPH          = 3,
+	DisplayTypeVelocityXY,
+	DisplayTypeVelocityXYZ,
+	DisplayTypeMPH,
+	DisplayTypeKPH
 };
 
-bool g_ClientOnOff[MAXPLAYERS+1];
 DisplayArea g_ClientDisplayArea[MAXPLAYERS+1];
 DisplayType g_ClientDisplayType[MAXPLAYERS+1];
 
 Handle g_MenuMain = INVALID_HANDLE;
 Handle g_MenuArea = INVALID_HANDLE;
 Handle g_MenuType = INVALID_HANDLE;
-
+bool   g_ClientOnOff[MAXPLAYERS+1];
+bool   g_IsCSGO;
+Handle g_Timer = INVALID_HANDLE;
 Handle g_Regex = INVALID_HANDLE;
+float  g_DisplayRate;
+ConVar g_CvarDisplayRate;
 
 public OnPluginStart(){
-	g_Regex = CompileRegex("^!speed", PCRE_CASELESS);
+	char sFolder[8];
+	g_IsCSGO = (GetGameFolderName(sFolder, sizeof(sFolder)) > 0 && strcmp(sFolder, "csgo") == 0);
+	g_Regex  = CompileRegex("^!speed", PCRE_CASELESS);
 
 	g_MenuMain = CreateMenu(MenuMainHandler);
 	SetMenuTitle(g_MenuMain, "Speedometer");
@@ -61,23 +63,29 @@ public OnPluginStart(){
 
 	g_MenuArea = CreateMenu(MenuAreaHandler);
 	SetMenuTitle(g_MenuArea, "Speedometer: Area");
+	SetMenuExitBackButton(g_MenuArea, true);
 	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "DisplayAreaCenter");
 	AddMenuItem(g_MenuArea, "DisplayAreaHint", "DisplayAreaHint");
 	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
-	AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
+	AddMenuItem(g_MenuArea, "DisplayAreaTopCenter", "DisplayAreaTopCenter");
+	if (!g_IsCSGO)
+		AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
+	AddMenuItem(g_MenuArea, "DisplayAreaCenterCenter", "DisplayAreaCenterCenter");
 	AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
-	AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
-	SetMenuExitBackButton(g_MenuArea, true);
+	if (!g_IsCSGO)
+		AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
 
 	g_MenuType = CreateMenu(MenuTypeHandler);
 	SetMenuTitle(g_MenuType, "Speedometer: Type");
+	SetMenuExitBackButton(g_MenuType, true);
 	AddMenuItem(g_MenuType, "DisplayTypeVelocityXY", "DisplayTypeVelocityXY");
 	AddMenuItem(g_MenuType, "DisplayTypeVelocityXYZ", "DisplayTypeVelocityXYZ");
 	AddMenuItem(g_MenuType, "DisplayTypeMPH", "DisplayTypeMPH");
 	AddMenuItem(g_MenuType, "DisplayTypeKPH", "DisplayTypeKPH");
-	SetMenuExitBackButton(g_MenuType, true);
 
-	CreateTimer(HUD_UPDATE_RATE, OnTimer, _, TIMER_REPEAT);
+	g_CvarDisplayRate = CreateConVar("speedometer_displayrate", "0.1", "Display update rate in seconds", 0, true, 0.01, true, 1.0);
+	g_CvarDisplayRate.AddChangeHook(OnDisplayRateChanged);
+	OnDisplayRateChanged(g_CvarDisplayRate, "", "");
 }
 
 public OnClientPutInServer(client){
@@ -88,7 +96,7 @@ public OnClientPutInServer(client){
 
 public Action OnClientSayCommand(client, const char[] cmd, const char[] args){
 	if (client > 0 && MatchRegex(g_Regex, args) > 0){
-		DisplayMenu(g_MenuMain, client, MENU_DISPLAY_SECONDS);
+		DisplayMenu(g_MenuMain, client, 30);
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
@@ -96,86 +104,92 @@ public Action OnClientSayCommand(client, const char[] cmd, const char[] args){
 
 public MenuMainHandler(Handle menu, MenuAction action, param1, param2){
 	if (action == MenuAction_Select && IsClientInGame(param1)){
-		char sMenuitem[32];
-		GetMenuItem(menu, param2, sMenuitem, sizeof(sMenuitem));
-		if (0 == strcmp(sMenuitem, "onoff")){
+		char sItem[32];
+		GetMenuItem(menu, param2, sItem, sizeof(sItem));
+		if (0 == strcmp(sItem, "onoff")){
 			g_ClientOnOff[param1] = !g_ClientOnOff[param1];
 			PrintToChat(param1, "\x04[Speedometer]:\x01 %s",
 				g_ClientOnOff[param1]?"On":"Off");
 		}
-		else if (0 == strcmp(sMenuitem, "area")){
-			DisplayMenu(g_MenuArea, param1, MENU_DISPLAY_SECONDS);
+		else if (0 == strcmp(sItem, "area")){
+			DisplayMenu(g_MenuArea, param1, 30);
 		}
-		else if (0 == strcmp(sMenuitem, "type")){
-			DisplayMenu(g_MenuType, param1, MENU_DISPLAY_SECONDS);
+		else if (0 == strcmp(sItem, "type")){
+			DisplayMenu(g_MenuType, param1, 30);
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
+			DisplayMenu(menu, param1, 30);
 		}
 	}
 }
 
 public MenuAreaHandler(Handle menu, MenuAction action, param1, param2){
 	if (action == MenuAction_Select && IsClientInGame(param1)){
-		char sMenuitem[32];
-		GetMenuItem(menu, param2, sMenuitem, sizeof(sMenuitem));
-		if (0 == strcmp(sMenuitem, "DisplayAreaCenter")){
+		char sItem[32];
+		GetMenuItem(menu, param2, sItem, sizeof(sItem));
+		if (0 == strcmp(sItem, "DisplayAreaCenter")){
 			g_ClientDisplayArea[param1] = DisplayAreaCenter;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayAreaHint")){
+		else if (0 == strcmp(sItem, "DisplayAreaHint")){
 			g_ClientDisplayArea[param1] = DisplayAreaHint;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayAreaTopLeft")){
+		else if (0 == strcmp(sItem, "DisplayAreaTopLeft")){
 			g_ClientDisplayArea[param1] = DisplayAreaTopLeft;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayAreaTopRight")){
+		else if (0 == strcmp(sItem, "DisplayAreaTopCenter")){
+			g_ClientDisplayArea[param1] = DisplayAreaTopCenter;
+		}
+		else if (0 == strcmp(sItem, "DisplayAreaTopRight")){
 			g_ClientDisplayArea[param1] = DisplayAreaTopRight;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayAreaBottomLeft")){
+		else if (0 == strcmp(sItem, "DisplayAreaCenterCenter")){
+			g_ClientDisplayArea[param1] = DisplayAreaCenterCenter;
+		}
+		else if (0 == strcmp(sItem, "DisplayAreaBottomLeft")){
 			g_ClientDisplayArea[param1] = DisplayAreaBottomLeft;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayAreaBottomRight")){
+		else if (0 == strcmp(sItem, "DisplayAreaBottomRight")){
 			g_ClientDisplayArea[param1] = DisplayAreaBottomRight;
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
+			DisplayMenu(menu, param1, 30);
 			return;
 		}
 		g_ClientOnOff[param1] = true;
-		PrintToChat(param1, "\x04[Speedometer]:\x01 Area set to %s", sMenuitem);
-		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
+		PrintToChat(param1, "\x04[Speedometer]:\x01 Area set to %s", sItem);
+		DisplayMenu(g_MenuMain, param1, 30);
 	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
-		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
+		DisplayMenu(g_MenuMain, param1, 30);
 	}
 }
 
 public MenuTypeHandler(Handle menu, MenuAction action, param1, param2){
 	if (action == MenuAction_Select && IsClientInGame(param1)){
-		char sMenuitem[32];
-		GetMenuItem(menu, param2, sMenuitem, sizeof(sMenuitem));
-		if (0 == strcmp(sMenuitem, "DisplayTypeVelocityXY")){
+		char sItem[32];
+		GetMenuItem(menu, param2, sItem, sizeof(sItem));
+		if (0 == strcmp(sItem, "DisplayTypeVelocityXY")){
 			g_ClientDisplayType[param1] = DisplayTypeVelocityXY;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayTypeVelocityXYZ")){
+		else if (0 == strcmp(sItem, "DisplayTypeVelocityXYZ")){
 			g_ClientDisplayType[param1] = DisplayTypeVelocityXYZ;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayTypeMPH")){
+		else if (0 == strcmp(sItem, "DisplayTypeMPH")){
 			g_ClientDisplayType[param1] = DisplayTypeMPH;
 		}
-		else if (0 == strcmp(sMenuitem, "DisplayTypeKPH")){
+		else if (0 == strcmp(sItem, "DisplayTypeKPH")){
 			g_ClientDisplayType[param1] = DisplayTypeKPH;
 		}
 		else {
-			DisplayMenu(menu, param1, MENU_DISPLAY_SECONDS);
+			DisplayMenu(menu, param1, 30);
 			return;
 		}
 		g_ClientOnOff[param1] = true;
-		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
-		PrintToChat(param1, "\x04[Speedometer]:\x01 Type set to %s", sMenuitem);
+		DisplayMenu(g_MenuMain, param1, 30);
+		PrintToChat(param1, "\x04[Speedometer]:\x01 Type set to %s", sItem);
 	}
 	else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack && IsClientInGame(param1)){
-		DisplayMenu(g_MenuMain, param1, MENU_DISPLAY_SECONDS);
+		DisplayMenu(g_MenuMain, param1, 30);
 	}
 }
 
@@ -208,13 +222,20 @@ public Action OnTimer(Handle timer){
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaHint){
 				PrintHintText(client, sOutput);
-				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+				if (!g_IsCSGO)
+					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaTopLeft){
 				PrintToGameText(client, sOutput, 0.0, 0.0);
 			}
+			else if (g_ClientDisplayArea[client] == DisplayAreaTopCenter){
+				PrintToGameText(client, sOutput, -1.0, 0.0);
+			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaTopRight){
 				PrintToGameText(client, sOutput, 1.0, 0.0);
+			}
+			else if (g_ClientDisplayArea[client] == DisplayAreaCenterCenter){
+				PrintToGameText(client, sOutput, -1.0, -1.0);
 			}
 			else if (g_ClientDisplayArea[client] == DisplayAreaBottomLeft){
 				PrintToGameText(client, sOutput, 0.0, 1.0);
@@ -228,11 +249,18 @@ public Action OnTimer(Handle timer){
 
 public PrintToGameText(int client, char[] msg, float sx, float sy){
 	SetHudTextParams(
-		sx, sy, HUD_UPDATE_RATE,
+		sx, sy, g_DisplayRate,
 		255, // r
 		255, // g
 		255, // b
 		255, // a
 		0, 0.0, 0.0, 0.0);
 	ShowHudText(client, -1, msg);
+}
+
+public void OnDisplayRateChanged(ConVar convar, char[] oldValue, char[] newValue){
+	g_DisplayRate = convar.FloatValue;
+	if (g_Timer != INVALID_HANDLE)
+		KillTimer(g_Timer);
+	g_Timer = CreateTimer(g_DisplayRate, OnTimer, _, TIMER_REPEAT);
 }

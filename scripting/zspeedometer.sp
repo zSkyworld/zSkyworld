@@ -74,7 +74,7 @@ public OnPluginStart(){
 	AddMenuItem(g_MenuMain, "onoff", "Display On/Off");
 	AddMenuItem(g_MenuMain, "area", "> Select Area");
 	AddMenuItem(g_MenuMain, "type", "> Select Type");
-	AddMenuItem(g_MenuMain, "jump", "Jump: On/Off");
+	AddMenuItem(g_MenuMain, "jump", "Jump On/Off");
 
 	g_MenuArea = CreateMenu(MenuAreaHandler);
 	SetMenuTitle(g_MenuArea, "Speedometer: Area");
@@ -140,6 +140,7 @@ public MenuMainHandler(Handle menu, MenuAction action, param1, param2){
 		}
 		else if (0 == strcmp(sItem, "jump")){
 			g_ClientJumpOnOff[param1] = !g_ClientJumpOnOff[param1];
+			g_ClientOnOff[param1] = true;
 			PrintToChat(param1, "\x04[Speedometer]:\x01 Jump %s",
 				g_ClientJumpOnOff[param1]?"On":"Off");
 		}

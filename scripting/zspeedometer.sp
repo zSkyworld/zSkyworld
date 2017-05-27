@@ -11,7 +11,7 @@
 	2017.05.23	initial
 	2017.05.24	added PrintToGameText
 	2017.05.25	added cvar, areas, csgo
-	2017.05.27	added pause on jump
+	2017.05.27	added pause on jump (thanks bogroll <3)
 */
 
 public Plugin myinfo = {
@@ -59,6 +59,7 @@ bool   g_ClientOnOff[MAXPLAYERS+1];
 float  g_DisplayRate;
 ConVar g_CvarDisplayRate;
 
+bool   g_ClientJumpOnOff[MAXPLAYERS+1];
 float  g_JumpTime[MAXPLAYERS+1];
 float  g_JumpVel[MAXPLAYERS+1][3];
 JumpState g_JumpState[MAXPLAYERS+1];
@@ -70,9 +71,10 @@ public OnPluginStart(){
 
 	g_MenuMain = CreateMenu(MenuMainHandler);
 	SetMenuTitle(g_MenuMain, "Speedometer");
-	AddMenuItem(g_MenuMain, "onoff", "On/Off");
-	AddMenuItem(g_MenuMain, "area", "Select Area");
-	AddMenuItem(g_MenuMain, "type", "Select Type");
+	AddMenuItem(g_MenuMain, "onoff", "Display On/Off");
+	AddMenuItem(g_MenuMain, "area", "> Select Area");
+	AddMenuItem(g_MenuMain, "type", "> Select Type");
+	AddMenuItem(g_MenuMain, "jump", "Jump: On/Off");
 
 	g_MenuArea = CreateMenu(MenuAreaHandler);
 	SetMenuTitle(g_MenuArea, "Speedometer: Area");
@@ -114,6 +116,7 @@ public OnPluginStart(){
 public OnClientPutInServer(client){
 	g_JumpState[client] = JumpStateNo;
 	g_ClientOnOff[client] = false;
+	g_ClientJumpOnOff[client] = false;
 	g_ClientDisplayArea[client] = DisplayAreaCenter;
 	g_ClientDisplayType[client] = DisplayTypeVelocityXY;
 }
@@ -132,8 +135,13 @@ public MenuMainHandler(Handle menu, MenuAction action, param1, param2){
 		GetMenuItem(menu, param2, sItem, sizeof(sItem));
 		if (0 == strcmp(sItem, "onoff")){
 			g_ClientOnOff[param1] = !g_ClientOnOff[param1];
-			PrintToChat(param1, "\x04[Speedometer]:\x01 %s",
+			PrintToChat(param1, "\x04[Speedometer]:\x01 Display %s",
 				g_ClientOnOff[param1]?"On":"Off");
+		}
+		else if (0 == strcmp(sItem, "jump")){
+			g_ClientJumpOnOff[param1] = !g_ClientJumpOnOff[param1];
+			PrintToChat(param1, "\x04[Speedometer]:\x01 Jump %s",
+				g_ClientJumpOnOff[param1]?"On":"Off");
 		}
 		else if (0 == strcmp(sItem, "area")){
 			DisplayMenu(g_MenuArea, param1, 30);
@@ -244,7 +252,7 @@ public Action OnTimer(Handle timer){
 			switch (g_ClientDisplayType[client]){
 				case DisplayTypeVelocityXY:
 				{
-					if (g_JumpState[client] == JumpStateSaved){
+					if (g_ClientJumpOnOff[client] && g_JumpState[client] == JumpStateSaved){
 						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
 							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1])),
 							SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1])));
@@ -256,7 +264,7 @@ public Action OnTimer(Handle timer){
 				}
 				case DisplayTypeVelocityXYZ:
 				{
-					if (g_JumpState[client] == JumpStateSaved){
+					if (g_ClientJumpOnOff[client] && g_JumpState[client] == JumpStateSaved){
 						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
 							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])),
 							SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])));
@@ -268,7 +276,7 @@ public Action OnTimer(Handle timer){
 				}
 				case DisplayTypeMPH:
 				{
-					if (g_JumpState[client] == JumpStateSaved){
+					if (g_ClientJumpOnOff[client] && g_JumpState[client] == JumpStateSaved){
 						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
 							(SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0),
 							(SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])) / 26.0));
@@ -280,7 +288,7 @@ public Action OnTimer(Handle timer){
 				}
 				case DisplayTypeKPH:
 				{
-					if (g_JumpState[client] == JumpStateSaved){
+					if (g_ClientJumpOnOff[client] && g_JumpState[client] == JumpStateSaved){
 						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
 							((SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0) * 1.609),
 							((SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])) / 26.0) * 1.609));

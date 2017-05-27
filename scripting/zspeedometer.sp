@@ -11,12 +11,19 @@
 	2017.05.23	initial
 	2017.05.24	added PrintToGameText
 	2017.05.25	added cvar, areas, csgo
+	2017.05.27	added pause on jump
 */
 
 public Plugin myinfo = {
 	name = "Speedometer",
 	author = "z.",
 	url = "http://zskyworld.com"
+};
+
+enum JumpState {
+	JumpStateNo,
+	JumpStateYes,
+	JumpStateSaved
 };
 
 enum DisplayArea {
@@ -40,15 +47,21 @@ enum DisplayType {
 DisplayArea g_ClientDisplayArea[MAXPLAYERS+1];
 DisplayType g_ClientDisplayType[MAXPLAYERS+1];
 
-Handle g_MenuMain = INVALID_HANDLE;
-Handle g_MenuArea = INVALID_HANDLE;
-Handle g_MenuType = INVALID_HANDLE;
-bool   g_ClientOnOff[MAXPLAYERS+1];
 bool   g_IsCSGO;
 Handle g_Timer = INVALID_HANDLE;
 Handle g_Regex = INVALID_HANDLE;
+
+Handle g_MenuMain = INVALID_HANDLE;
+Handle g_MenuArea = INVALID_HANDLE;
+Handle g_MenuType = INVALID_HANDLE;
+
+bool   g_ClientOnOff[MAXPLAYERS+1];
 float  g_DisplayRate;
 ConVar g_CvarDisplayRate;
+
+float  g_JumpTime[MAXPLAYERS+1];
+float  g_JumpVel[MAXPLAYERS+1][3];
+JumpState g_JumpState[MAXPLAYERS+1];
 
 public OnPluginStart(){
 	char sFolder[8];
@@ -64,31 +77,42 @@ public OnPluginStart(){
 	g_MenuArea = CreateMenu(MenuAreaHandler);
 	SetMenuTitle(g_MenuArea, "Speedometer: Area");
 	SetMenuExitBackButton(g_MenuArea, true);
-	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "DisplayAreaCenter");
-	AddMenuItem(g_MenuArea, "DisplayAreaHint", "DisplayAreaHint");
-	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "DisplayAreaTopLeft");
-	AddMenuItem(g_MenuArea, "DisplayAreaTopCenter", "DisplayAreaTopCenter");
-	if (!g_IsCSGO)
-		AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "DisplayAreaTopRight");
-	AddMenuItem(g_MenuArea, "DisplayAreaCenterCenter", "DisplayAreaCenterCenter");
-	AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "DisplayAreaBottomLeft");
-	if (!g_IsCSGO)
-		AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "DisplayAreaBottomRight");
+	AddMenuItem(g_MenuArea, "DisplayAreaCenter", "Center");
+	AddMenuItem(g_MenuArea, "DisplayAreaHint", "Hint");
+	AddMenuItem(g_MenuArea, "DisplayAreaTopLeft", "TopLeft");
+	AddMenuItem(g_MenuArea, "DisplayAreaTopCenter", "TopCenter");
+	if (!g_IsCSGO){
+		AddMenuItem(g_MenuArea, "DisplayAreaTopRight", "TopRight");
+	}
+	AddMenuItem(g_MenuArea, "DisplayAreaCenterCenter", "CenterCenter");
+	AddMenuItem(g_MenuArea, "DisplayAreaBottomLeft", "BottomLeft");
+	if (!g_IsCSGO){
+		AddMenuItem(g_MenuArea, "DisplayAreaBottomRight", "BottomRight");
+	}
 
 	g_MenuType = CreateMenu(MenuTypeHandler);
 	SetMenuTitle(g_MenuType, "Speedometer: Type");
 	SetMenuExitBackButton(g_MenuType, true);
-	AddMenuItem(g_MenuType, "DisplayTypeVelocityXY", "DisplayTypeVelocityXY");
-	AddMenuItem(g_MenuType, "DisplayTypeVelocityXYZ", "DisplayTypeVelocityXYZ");
-	AddMenuItem(g_MenuType, "DisplayTypeMPH", "DisplayTypeMPH");
-	AddMenuItem(g_MenuType, "DisplayTypeKPH", "DisplayTypeKPH");
+	AddMenuItem(g_MenuType, "DisplayTypeVelocityXY", "XY");
+	AddMenuItem(g_MenuType, "DisplayTypeVelocityXYZ", "XYZ");
+	AddMenuItem(g_MenuType, "DisplayTypeMPH", "MPH");
+	AddMenuItem(g_MenuType, "DisplayTypeKPH", "KPH");
 
 	g_CvarDisplayRate = CreateConVar("speedometer_displayrate", "0.1", "Display update rate in seconds", 0, true, 0.01, true, 1.0);
 	g_CvarDisplayRate.AddChangeHook(OnDisplayRateChanged);
 	OnDisplayRateChanged(g_CvarDisplayRate, "", "");
+
+	HookEvent("player_jump", OnPlayerJump);
+
+	for (int client=1; client<=MaxClients; client++){
+		if (IsClientInGame(client)){
+			OnClientPutInServer(client);
+		}
+	}
 }
 
 public OnClientPutInServer(client){
+	g_JumpState[client] = JumpStateNo;
 	g_ClientOnOff[client] = false;
 	g_ClientDisplayArea[client] = DisplayAreaCenter;
 	g_ClientDisplayType[client] = DisplayTypeVelocityXY;
@@ -199,49 +223,115 @@ public Action OnTimer(Handle timer){
 	for (int client=1; client<=MaxClients; client++){
 		if (IsClientInGame(client) && g_ClientOnOff[client]){
 			GetEntPropVector(client, Prop_Data, "m_vecVelocity", fVel);
-			if (g_ClientDisplayType[client] == DisplayTypeVelocityXY){
-				Format(sOutput, sizeof(sOutput), "%.1fxy",
-					SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1])));
+
+			switch (g_JumpState[client]){
+				case JumpStateSaved:
+				{
+					if (GetEngineTime() > g_JumpTime[client] + 2.0){
+						g_JumpState[client] = JumpStateNo;
+					}
+				}
+				case JumpStateNo:
+				{
+				}
+				case JumpStateYes:
+				{
+					g_JumpState[client] = JumpStateSaved;
+					g_JumpVel[client] = fVel;
+				}
 			}
-			else if (g_ClientDisplayType[client] == DisplayTypeVelocityXYZ){
-				Format(sOutput, sizeof(sOutput), "%.1fxyz",
-					SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])));
+
+			switch (g_ClientDisplayType[client]){
+				case DisplayTypeVelocityXY:
+				{
+					if (g_JumpState[client] == JumpStateSaved){
+						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
+							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1])),
+							SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1])));
+					}
+					else {
+						Format(sOutput, sizeof(sOutput), "%.1f",
+							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1])));
+					}
+				}
+				case DisplayTypeVelocityXYZ:
+				{
+					if (g_JumpState[client] == JumpStateSaved){
+						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
+							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])),
+							SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])));
+					}
+					else {
+						Format(sOutput, sizeof(sOutput), "%.1f",
+							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])));
+					}
+				}
+				case DisplayTypeMPH:
+				{
+					if (g_JumpState[client] == JumpStateSaved){
+						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
+							(SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0),
+							(SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])) / 26.0));
+					}
+					else {
+						Format(sOutput, sizeof(sOutput), "%.1f",
+							SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0);
+					}
+				}
+				case DisplayTypeKPH:
+				{
+					if (g_JumpState[client] == JumpStateSaved){
+						Format(sOutput, sizeof(sOutput), "%.1f\n%.1f",
+							((SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0) * 1.609),
+							((SquareRoot((g_JumpVel[client][0] * g_JumpVel[client][0]) + (g_JumpVel[client][1] * g_JumpVel[client][1]) + (g_JumpVel[client][2] * g_JumpVel[client][2])) / 26.0) * 1.609));
+					}
+					else {
+						Format(sOutput, sizeof(sOutput), "%.1f",
+							(SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0) * 1.609);
+					}
+				}
+				default:
+				{
+					continue;
+				}
 			}
-			else if (g_ClientDisplayType[client] == DisplayTypeMPH){
-				Format(sOutput, sizeof(sOutput), "%.1fmph",
-					SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0);
-			}
-			else if (g_ClientDisplayType[client] == DisplayTypeKPH){
-				Format(sOutput, sizeof(sOutput), "%.1fkph",
-					(SquareRoot((fVel[0] * fVel[0]) + (fVel[1] * fVel[1]) + (fVel[2] * fVel[2])) / 26.0) * 1.609);
-			} else {
-				continue;
-			}
-			if (g_ClientDisplayArea[client] == DisplayAreaCenter){
-				PrintCenterText(client, sOutput);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaHint){
-				PrintHintText(client, sOutput);
-				if (!g_IsCSGO)
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaTopLeft){
-				PrintToGameText(client, sOutput, 0.0, 0.0);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaTopCenter){
-				PrintToGameText(client, sOutput, -1.0, 0.0);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaTopRight){
-				PrintToGameText(client, sOutput, 1.0, 0.0);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaCenterCenter){
+
+			switch (g_ClientDisplayArea[client]){
+				case DisplayAreaCenter:
+				{
+					PrintCenterText(client, sOutput);
+				}
+				case DisplayAreaHint:
+				{
+					PrintHintText(client, sOutput);
+					if (!g_IsCSGO){
+						StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+					}
+				}
+				case DisplayAreaTopLeft:
+				{
+					PrintToGameText(client, sOutput, 0.0, 0.0);
+				}
+				case DisplayAreaTopCenter:
+				{
+					PrintToGameText(client, sOutput, -1.0, 0.0);
+				}
+				case DisplayAreaTopRight:
+				{
+					PrintToGameText(client, sOutput, 1.0, 0.0);
+				}
+				case DisplayAreaCenterCenter:
+				{
 				PrintToGameText(client, sOutput, -1.0, -1.0);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaBottomLeft){
-				PrintToGameText(client, sOutput, 0.0, 1.0);
-			}
-			else if (g_ClientDisplayArea[client] == DisplayAreaBottomRight){
-				PrintToGameText(client, sOutput, 1.0, 1.0);
+				}
+				case DisplayAreaBottomLeft:
+				{
+					PrintToGameText(client, sOutput, 0.0, 1.0);
+				}
+				case DisplayAreaBottomRight:
+				{
+					PrintToGameText(client, sOutput, 1.0, 1.0);
+				}
 			}
 		}
 	}
@@ -260,7 +350,17 @@ public PrintToGameText(int client, char[] msg, float sx, float sy){
 
 public void OnDisplayRateChanged(ConVar convar, char[] oldValue, char[] newValue){
 	g_DisplayRate = convar.FloatValue;
-	if (g_Timer != INVALID_HANDLE)
+	if (g_Timer != INVALID_HANDLE){
 		KillTimer(g_Timer);
+	}
 	g_Timer = CreateTimer(g_DisplayRate, OnTimer, _, TIMER_REPEAT);
+}
+
+public Action OnPlayerJump(Handle event, char[] name, bool dontBroadcast){
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client > 0 && client <= MaxClients){
+		g_JumpTime[client] = GetEngineTime();
+		g_JumpState[client] = JumpStateYes;
+	}
+	return Plugin_Continue;
 }
